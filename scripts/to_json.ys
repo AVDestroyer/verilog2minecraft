@@ -1,0 +1,20 @@
+# Verilog -> Yosys JSON netlist
+#
+# This follows the MinecraftHDL synthesis flow:
+#   read_verilog -> hierarchy -> proc/fsm/memory -> techmap -> json
+#
+# Placeholders are substituted by scripts/synth.sh:
+#   @VERILOG_FILE@
+#   @TOP_MODULE_DIRECTIVE@   (empty, or " -top <module>")
+#   @OUTPUT_JSON@
+#
+# Manual use:
+#   1. Replace the placeholders below with real paths/names, or
+#   2. Prefer: ./scripts/synth.sh <verilog> [top_module] [output.json]
+#      (defaults to examples/build/<verilog_basename>.json)
+
+read_verilog -sv @VERILOG_FILE@
+hierarchy -check@TOP_MODULE_DIRECTIVE@
+proc; opt; fsm; opt; memory; opt
+techmap; opt
+json -o @OUTPUT_JSON@

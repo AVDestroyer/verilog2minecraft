@@ -1,4 +1,4 @@
-// 2:1 mux — exercises $_MUX_ after techmap.
+// 2:1 mux — ABC decomposes this into the restricted target gate set.
 module mux2 (
     input  wire a,
     input  wire b,

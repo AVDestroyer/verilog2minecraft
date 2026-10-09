@@ -2,3 +2,6 @@ examples/build/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+youtube-tool.py
+plan.md
+NEXT_STEPS.md

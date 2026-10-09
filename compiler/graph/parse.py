@@ -6,7 +6,13 @@ import json
 from pathlib import Path
 from typing import Any, Optional, Union
 
-from .cells import CellKind, classify_cell, state_port_roles
+from .cells import (
+    CellKind,
+    classify_cell,
+    state_clock_edge,
+    state_logical_type,
+    state_port_roles,
+)
 from .ir import (
     CombCell,
     ControlEdge,
@@ -116,7 +122,10 @@ def _build_module(name: str, mod: dict[str, Any]) -> ModuleGraph:
         ytype = cinfo.get("type")
         if not ytype:
             raise ValueError(f"cell {cname} has no type")
-        kind = classify_cell(ytype)
+        try:
+            kind = classify_cell(ytype)
+        except ValueError as exc:
+            raise ValueError(f"cell {cname}: {exc}") from exc
         dirs = dict(cinfo.get("port_directions") or {})
         conns = dict(cinfo.get("connections") or {})
         if kind is CellKind.COMB:
@@ -133,6 +142,8 @@ def _build_module(name: str, mod: dict[str, Any]) -> ModuleGraph:
                 StateCell(
                     name=cname,
                     yosys_type=ytype,
+                    logical_type=state_logical_type(ytype),
+                    clock_edge=state_clock_edge(ytype),
                     port_directions=dirs,
                     connections=conns,
                     roles=state_port_roles(ytype),

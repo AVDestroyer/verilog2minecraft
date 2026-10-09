@@ -1,7 +1,7 @@
 # Verilog -> Yosys JSON netlist
 #
-# This follows the MinecraftHDL synthesis flow:
-#   read_verilog -> hierarchy -> proc/fsm/memory -> techmap -> json
+# Lower RTL, reduce state to positive-edge registers, and map combinational
+# logic to the Minecraft target gate set before writing JSON.
 #
 # Placeholders are substituted by scripts/synth.sh:
 #   @VERILOG_FILE@
@@ -17,4 +17,8 @@ read_verilog -sv @VERILOG_FILE@
 hierarchy -check@TOP_MODULE_DIRECTIVE@
 proc; opt; fsm; opt; memory; opt
 techmap; opt
+dffunmap
+dfflegalize -cell $_DFF_P_ x
+abc -g AND,OR,XOR,XNOR,NAND,NOR
+clean
 json -o @OUTPUT_JSON@

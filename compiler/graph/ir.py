@@ -87,6 +87,8 @@ class CombCell:
 class StateCell:
     name: str
     yosys_type: str
+    logical_type: str
+    clock_edge: str
     port_directions: dict[str, str]
     connections: dict[str, list[Any]]
     roles: dict[str, str]  # logical role -> Yosys port name
@@ -244,7 +246,13 @@ class ModuleGraph:
             f"  primary_inputs:  {[p.name for p in self.primary_inputs]}",
             f"  primary_outputs: {[p.name for p in self.primary_outputs]}",
             f"  comb_cells:      {[f'{c.name}:{c.yosys_type}' for c in self.comb_cells]}",
-            f"  state_cells:     {[f'{c.name}:{c.yosys_type}' for c in self.state_cells]}",
+            "  state_cells:     "
+            + str(
+                [
+                    f"{c.name}:{c.logical_type}({c.yosys_type})"
+                    for c in self.state_cells
+                ]
+            ),
             f"  data_edges ({len(self.data_edges)}):",
         ]
         for e in self.data_edges:
@@ -288,6 +296,8 @@ class ModuleGraph:
                 {
                     "name": c.name,
                     "type": c.yosys_type,
+                    "logical_type": c.logical_type,
+                    "clock_edge": c.clock_edge,
                     "roles": c.roles,
                     "port_directions": c.port_directions,
                     "connections": c.connections,

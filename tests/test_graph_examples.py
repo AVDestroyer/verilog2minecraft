@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import subprocess
 import unittest
 
-from compiler.graph import CombCycleError, parse_yosys_json_file
+from compiler.graph import CombCycleError, parse_yosys_json, parse_yosys_json_file
+from compiler.graph.cells import (
+    COMB_CELLS,
+    LOGICAL_REGISTER,
+    REGISTER_YOSYS_TYPE,
+)
 from tests.helpers import synth
 
 
@@ -26,12 +32,14 @@ class TestExampleGraphs(unittest.TestCase):
         self.assertIn("a", layers[0])
         self.assertIn("b", layers[0])
 
-    def test_mux2_emits_mux_cell(self) -> None:
+    def test_mux2_maps_to_target_gates(self) -> None:
         path = synth("mux2.v", "mux2")
         g = parse_yosys_json_file(path)
         g.validate()
-        self.assertEqual([c.yosys_type for c in g.comb_cells], ["$_MUX_"])
-        self.assertEqual(len(g.data_edges), 4)
+        types = {c.yosys_type for c in g.comb_cells}
+        self.assertTrue(types)
+        self.assertTrue(types.issubset(COMB_CELLS))
+        self.assertNotIn("$_MUX_", types)
 
     def test_adder4_multibit_ports(self) -> None:
         path = synth("adder4.v", "adder4")
@@ -55,11 +63,17 @@ class TestExampleGraphs(unittest.TestCase):
         g = parse_yosys_json_file(path)
         g.validate()
         self.assertEqual(len(g.state_cells), 1)
-        self.assertEqual(g.state_cells[0].yosys_type, "$_SDFF_PP0_")
+        self.assertEqual(g.state_cells[0].yosys_type, REGISTER_YOSYS_TYPE)
+        self.assertEqual(g.state_cells[0].logical_type, LOGICAL_REGISTER)
+        self.assertEqual(g.state_cells[0].clock_edge, "positive")
+        serialized = g.to_dict()["state_cells"][0]
+        self.assertEqual(serialized["logical_type"], LOGICAL_REGISTER)
+        self.assertEqual(serialized["clock_edge"], "positive")
         roles = {e.role for e in g.control_edges}
-        self.assertEqual(roles, {"clock", "reset"})
+        self.assertEqual(roles, {"clock"})
         self.assertFalse(g.has_comb_cycle())
-        # Feedback is Q -> NOT -> D, not a comb cycle through the flop.
+        # Reset has been lowered into the D logic. Feedback still crosses the
+        # Q/D register boundary instead of becoming a combinational cycle.
         q_sources = [e for e in g.data_edges if e.src.port == "Q"]
         d_sinks = [e for e in g.data_edges if e.dst.port == "D"]
         self.assertTrue(q_sources)
@@ -70,13 +84,18 @@ class TestExampleGraphs(unittest.TestCase):
         g = parse_yosys_json_file(path)
         g.validate()
         self.assertEqual(len(g.state_cells), 4)
-        self.assertTrue(all(c.yosys_type == "$_SDFF_PP0_" for c in g.state_cells))
+        self.assertTrue(
+            all(c.yosys_type == REGISTER_YOSYS_TYPE for c in g.state_cells)
+        )
+        self.assertTrue(
+            all(c.logical_type == LOGICAL_REGISTER for c in g.state_cells)
+        )
         q = next(p for p in g.primary_outputs if p.name == "q")
         self.assertEqual(q.width, 4)
         clocks = [e for e in g.control_edges if e.role == "clock"]
         resets = [e for e in g.control_edges if e.role == "reset"]
         self.assertEqual(len(clocks), 4)
-        self.assertEqual(len(resets), 4)
+        self.assertEqual(resets, [])
         self.assertFalse(g.has_comb_cycle())
         layers = g.topo_layers()
         # All Q pins should be sources in the first layer.
@@ -98,13 +117,52 @@ class TestExampleGraphs(unittest.TestCase):
         assert cycle is not None
         self.assertGreaterEqual(len(cycle), 3)
 
+    def test_level_latch_cannot_be_legalized_to_target_dff(self) -> None:
+        with self.assertRaises(subprocess.CalledProcessError):
+            synth("level_latch.v", "level_latch")
+
 
 class TestIrHelpers(unittest.TestCase):
-    def test_unsupported_cell_raises(self) -> None:
+    def test_target_cell_allowlist_is_exact(self) -> None:
+        self.assertEqual(
+            COMB_CELLS,
+            {
+                "$_NOT_",
+                "$_AND_",
+                "$_NAND_",
+                "$_OR_",
+                "$_NOR_",
+                "$_XOR_",
+                "$_XNOR_",
+            },
+        )
+
+    def test_unsupported_sequential_cells_raise(self) -> None:
         from compiler.graph.cells import classify_cell
 
-        with self.assertRaises(ValueError):
-            classify_cell("$_DFF_PP0_")  # async-reset variant not in allowlist yet
+        for cell_type in ("$_DFF_N_", "$_SDFF_PP0_", "$_DLATCH_P_"):
+            with self.subTest(cell_type=cell_type):
+                with self.assertRaisesRegex(ValueError, "unsupported sequential"):
+                    classify_cell(cell_type)
+
+    def test_parser_names_rejected_sequential_cell(self) -> None:
+        data = {
+            "modules": {
+                "top": {
+                    "cells": {
+                        "bad_latch": {
+                            "type": "$_DLATCH_P_",
+                            "port_directions": {},
+                            "connections": {},
+                        }
+                    }
+                }
+            }
+        }
+        with self.assertRaisesRegex(
+            ValueError, "cell bad_latch: unsupported sequential"
+        ):
+            parse_yosys_json(data)
 
 
 if __name__ == "__main__":

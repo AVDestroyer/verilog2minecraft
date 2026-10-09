@@ -1,5 +1,4 @@
-"""Yosys cell-type classification for the sequential-aware graph IR.
-"""
+"""Yosys cells accepted by the Minecraft target graph IR."""
 
 from __future__ import annotations
 
@@ -12,71 +11,37 @@ class CellKind(Enum):
     STATE = auto()
 
 
-# Combinational gate primitives emitted after `techmap`.
+# The complete combinational target produced by the restricted ABC mapping.
 COMB_CELLS: FrozenSet[str] = frozenset(
     {
         "$_NOT_",
-        "$_BUF_",
         "$_AND_",
         "$_NAND_",
         "$_OR_",
         "$_NOR_",
         "$_XOR_",
         "$_XNOR_",
-        "$_ANDNOT_",
-        "$_ORNOT_",
-        "$_MUX_",
-        "$_NMUX_",
-        "$_AOI3_",
-        "$_OAI3_",
-        "$_AOI4_",
-        "$_OAI4_",
     }
 )
 
-# Edge-triggered flops / latches we currently treat as state boundaries.
-# Port roles below are the common Yosys gate-level names after techmap.
+LOGICAL_REGISTER = "REGISTER"
+REGISTER_YOSYS_TYPE = "$_DFF_P_"
+
+# A logical REGISTER captures D on the positive edge of C and exposes the
+# stored value on Q. Reset and enable behavior must be lowered into the D path
+# before the graph is parsed.
 STATE_CELLS: dict[str, dict[str, str]] = {
-    # Positive-edge DFF, sync reset to 0: C=clk, D=data, Q=state, R=reset
-    "$_SDFF_PP0_": {
+    REGISTER_YOSYS_TYPE: {
         "data_in": "D",
         "data_out": "Q",
         "clock": "C",
-        "reset": "R",
-    },
-    "$_SDFF_PP1_": {
-        "data_in": "D",
-        "data_out": "Q",
-        "clock": "C",
-        "reset": "R",
-    },
-    "$_DFF_P_": {
-        "data_in": "D",
-        "data_out": "Q",
-        "clock": "C",
-    },
-    "$_DFF_N_": {
-        "data_in": "D",
-        "data_out": "Q",
-        "clock": "C",
-    },
-    "$_DFFE_PP_": {
-        "data_in": "D",
-        "data_out": "Q",
-        "clock": "C",
-        "enable": "E",
-    },
-    "$_DLATCH_P_": {
-        "data_in": "D",
-        "data_out": "Q",
-        "enable": "E",
-    },
-    "$_DLATCH_N_": {
-        "data_in": "D",
-        "data_out": "Q",
-        "enable": "E",
     },
 }
+
+
+def _looks_sequential(yosys_type: str) -> bool:
+    upper = yosys_type.upper()
+    return any(token in upper for token in ("DFF", "LATCH", "$_FF_", "$_SR_"))
 
 
 def classify_cell(yosys_type: str) -> CellKind:
@@ -84,6 +49,12 @@ def classify_cell(yosys_type: str) -> CellKind:
         return CellKind.COMB
     if yosys_type in STATE_CELLS:
         return CellKind.STATE
+    if _looks_sequential(yosys_type):
+        raise ValueError(
+            f"unsupported sequential cell type: {yosys_type}; "
+            f"target supports only {REGISTER_YOSYS_TYPE} "
+            f"(positive-edge logical {LOGICAL_REGISTER})"
+        )
     raise ValueError(f"unsupported Yosys cell type: {yosys_type}")
 
 
@@ -92,3 +63,15 @@ def state_port_roles(yosys_type: str) -> dict[str, str]:
         return STATE_CELLS[yosys_type]
     except KeyError as exc:
         raise ValueError(f"not a known state cell: {yosys_type}") from exc
+
+
+def state_logical_type(yosys_type: str) -> str:
+    if yosys_type != REGISTER_YOSYS_TYPE:
+        raise ValueError(f"not a known state cell: {yosys_type}")
+    return LOGICAL_REGISTER
+
+
+def state_clock_edge(yosys_type: str) -> str:
+    if yosys_type != REGISTER_YOSYS_TYPE:
+        raise ValueError(f"not a known state cell: {yosys_type}")
+    return "positive"

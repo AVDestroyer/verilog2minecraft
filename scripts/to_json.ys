@@ -19,6 +19,6 @@ proc; opt; fsm; opt; memory; opt
 techmap; opt
 dffunmap
 dfflegalize -cell $_DFF_P_ x
-abc -g AND,OR,XOR,XNOR,NAND,NOR
+abc -g NAND,OR
 clean
 json -o @OUTPUT_JSON@

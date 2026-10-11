@@ -10,9 +10,8 @@ Done so far:
 
 1. **Yosys frontend script** — Compiles RTL into a netlist that only contains cells from our library.
 2. **Sequential-aware graph IR** — parses primary I/O, combinational cells, positive-edge logical `REGISTER` cells, **data edges**, and clock **control edges**.
-3. **Examples + tests**
-
-Not done yet: cell library / redstone macros, placement, routing, Minecraft export, or primitive characterization from update-based redstone techniques.
+3. **Cell Library**
+4. **Examples + tests**
 
 ## Requirements
 
@@ -39,8 +38,6 @@ python3 -m compiler.graph examples/build/minimal_toggle.json \
 python3 -m unittest discover -s tests -v
 ```
 
-`examples/build/` is gitignored.
-
 ### Synth script
 
 ```bash
@@ -55,7 +52,7 @@ The frontend builds a sequential-aware graph:
 
 | Concept             | Role                                                       |
 | ------------------- | ---------------------------------------------------------- |
-| Combinational cells | `NOT`, `AND`, `OR`, `XOR`, `XNOR`, `NAND`, and `NOR`       |
+| Combinational cells | `NAND`, `NOT`, and `OR`                                    |
 | State cells         | Positive-edge logical `REGISTER` (`$_DFF_P_`)              |
 | Data edges          | Value flow for placement layering (`Q → NOT → D`, outputs) |
 | Control edges       | Clock attachment to registers (not used for topo sort)     |
@@ -66,4 +63,11 @@ State cells are split at the register boundary for DAG analysis: `Q` is a source
 
 ## Supported Yosys cells
 
-Only an explicit allowlist in [`compiler/graph/cells.py`](compiler/graph/cells.py) is accepted. ABC maps combinational logic to `$_NOT_`, `$_AND_`, `$_OR_`, `$_XOR_`, `$_XNOR_`, `$_NAND_`, and `$_NOR_`. The only accepted sequential cell is `$_DFF_P_`, represented in the graph as a positive-edge logical `REGISTER`.
+For our first version, we only support the following gates/cells
+
+- NAND
+- NOR
+- OR
+- Positive D-flip-flop
+
+More gates are coming in the future.

@@ -15,15 +15,17 @@ from tests.helpers import synth
 
 
 class TestExampleGraphs(unittest.TestCase):
-    def test_and2_is_simple_comb_dag(self) -> None:
+    def test_and2_is_mapped_to_v1_gates(self) -> None:
         path = synth("and2.v", "and2")
         g = parse_yosys_json_file(path)
         g.validate()
         self.assertEqual(g.name, "and2")
         self.assertEqual([p.name for p in g.primary_inputs], ["a", "b"])
         self.assertEqual([p.name for p in g.primary_outputs], ["y"])
-        self.assertEqual(len(g.comb_cells), 1)
-        self.assertEqual(g.comb_cells[0].yosys_type, "$_AND_")
+        self.assertGreaterEqual(len(g.comb_cells), 1)
+        self.assertTrue(
+            {cell.yosys_type for cell in g.comb_cells}.issubset(COMB_CELLS)
+        )
         self.assertEqual(g.state_cells, [])
         self.assertEqual(g.control_edges, [])
         self.assertFalse(g.has_comb_cycle())
@@ -53,7 +55,7 @@ class TestExampleGraphs(unittest.TestCase):
         self.assertEqual(g.state_cells, [])
         self.assertGreater(len(g.comb_cells), 1)
         types = {c.yosys_type for c in g.comb_cells}
-        self.assertTrue({"$_AND_", "$_XOR_"}.issubset(types))
+        self.assertTrue(types.issubset(COMB_CELLS))
         # Each bit of sum should be driven somehow into the output port.
         sum_bits = {e.dst.bit for e in g.data_edges if e.dst.node == "sum"}
         self.assertEqual(sum_bits, {0, 1, 2, 3})
@@ -128,14 +130,18 @@ class TestIrHelpers(unittest.TestCase):
             COMB_CELLS,
             {
                 "$_NOT_",
-                "$_AND_",
                 "$_NAND_",
                 "$_OR_",
-                "$_NOR_",
-                "$_XOR_",
-                "$_XNOR_",
             },
         )
+
+    def test_other_combinational_cells_are_rejected(self) -> None:
+        from compiler.graph.cells import classify_cell
+
+        for cell_type in ("$_AND_", "$_NOR_", "$_XOR_", "$_XNOR_"):
+            with self.subTest(cell_type=cell_type):
+                with self.assertRaisesRegex(ValueError, "unsupported Yosys cell"):
+                    classify_cell(cell_type)
 
     def test_unsupported_sequential_cells_raise(self) -> None:
         from compiler.graph.cells import classify_cell

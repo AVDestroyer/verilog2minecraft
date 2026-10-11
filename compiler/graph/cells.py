@@ -11,16 +11,11 @@ class CellKind(Enum):
     STATE = auto()
 
 
-# The complete combinational target produced by the restricted ABC mapping.
 COMB_CELLS: FrozenSet[str] = frozenset(
     {
         "$_NOT_",
-        "$_AND_",
         "$_NAND_",
         "$_OR_",
-        "$_NOR_",
-        "$_XOR_",
-        "$_XNOR_",
     }
 )
 

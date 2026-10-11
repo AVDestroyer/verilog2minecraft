@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "coordinate_system": {
+    "name": "cell_local",
+    "units": "blocks",
+    "axis_order": ["x", "y", "z"],
+    "origin": "bottom-left corner at [0, 0, 0]",
+    "logic_flow": "+x",
+    "vertical": "+y",
+    "toward_bottom_right": "+z",
+    "minecraft_axes": {
+      "+x": "-x",
+      "+y": "+y",
+      "+z": "-z"
+    },
+    "description": "Canonical gate-local coordinates: +x follows logic flow, +y is vertical, and +z points from the bottom-left origin toward the bottom-right corner. Litematica BlockStates arrays always increase along Minecraft +X/+Y/+Z from the minimum region corner; signed region sizes only preserve selection-corner order."
+  },
+  "cells": [
+    "cells/nand/cell.json",
+    "cells/not/cell.json",
+    "cells/or/cell.json"
+  ],
+  "deferred_assets": [
+    "deferred/d_latch/cell.litematic"
+  ]
+}
